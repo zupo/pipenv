@@ -305,7 +305,7 @@ records = "*"
 tablib = "*"
                 """.strip()
                 f.write(contents)
-            c = p.pipenv('install')
+            c = p.pipenv('install --verbose')
             assert c.return_code == 0
             assert 'tablib' in p.pipfile['packages']
             assert p.pipfile.get('dev-packages', {}) == {}
