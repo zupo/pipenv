@@ -15,7 +15,8 @@ from ctypes.wintypes import DWORD, LONG
 
 ERROR_NO_MORE_FILES = 18
 INVALID_HANDLE_VALUE = c_void_p(-1).value
-SHELL_NAMES = ['cmd', 'powershell', 'pwsh', 'cmder']
+SHELL_NAMES = ['cmd', 'powershell', 'pwsh']
+EMULATOR_NAMES = ['cmder']
 
 
 class PROCESSENTRY32(Structure):
@@ -94,7 +95,7 @@ def get_all_processes():
     return pids
 
 
-def _get_executable(process_dict):
+def _get_executable_name(process_dict):
     if hasattr(process_dict, 'keys'):
         executable = process_dict.get('executable')
         if isinstance(executable, six.string_types):
@@ -102,20 +103,26 @@ def _get_executable(process_dict):
     return ''
 
 
-def get_shell(pid=None, max_depth=6):
+def get_shell(pid=None, max_depth=6, shell='', emulator=''):
     """Get the shell that the supplied pid or os.getpid() is running in.
+
+    Returns a 2-tuple of strings: ``(shell_exe, emulator_exe)``. Either item
+    may be empty if a shell or emulator is not detected.
     """
     if not pid:
         pid = os.getpid()
     processes = get_all_processes()
 
-    def check_parent(pid, lvl=0):
-        ppid = processes[pid].get('parent_pid')
-        if ppid and _get_executable(processes.get(ppid)) in SHELL_NAMES:
-            return processes[ppid]['executable']
-        if lvl >= max_depth:
-            return
-        return check_parent(ppid, lvl=lvl+1)
-    if _get_executable(processes.get(pid)) in SHELL_NAMES:
-        return processes[pid]['executable']
-    return check_parent(pid)
+    for _ in range(max_depth):
+        proc = processes.get(pid)
+        if proc:
+            name = _get_executable_name(proc)
+            if not shell and name in SHELL_NAMES:
+                shell = proc['executable']
+            if not emulator and name in EMULATOR_NAMES:
+                emulator = proc['executable']
+            if shell and emulator:
+                break
+        pid = proc.get('parent_pid')
+
+    return (shell, emulator)

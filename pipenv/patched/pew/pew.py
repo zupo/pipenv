@@ -167,7 +167,7 @@ def fork_shell(env, shellcmd, cwd):
             raise
 
 
-def fork_bash(env, cwd):
+def fork_bash(env, shellcmd, cwd):
     # bash is a special little snowflake, and prevent_path_errors cannot work there
     # https://github.com/berdario/pew/issues/58#issuecomment-102182346
     bashrcpath = expandpath('~/.bashrc')
@@ -177,9 +177,9 @@ def fork_bash(env, cwd):
                 rcfile.write(bashrc.read())
             rcfile.write('\nexport PATH="' + to_unicode(compute_path(env)) + '"')
             rcfile.flush()
-            fork_shell(env, ['bash', '--rcfile', rcfile.name], cwd)
+            fork_shell(env, shellcmd + ['--rcfile', rcfile.name], cwd)
     else:
-        fork_shell(env, ['bash'], cwd)
+        fork_shell(env, shellcmd, cwd)
 
 
 def fork_cmder(env, cwd):
@@ -191,22 +191,37 @@ def fork_cmder(env, cwd):
         os.environ['CMDER_START'] = cwd
     fork_shell(env, shell_cmd, cwd)
 
+
 def _detect_shell():
-    shell = os.environ.get('SHELL', None)
-    if not shell:
-        if 'CMDER_ROOT' in os.environ:
-            shell = 'Cmder'
-        elif windows:
-            shell = get_shell(os.getpid())
-        else:
-            shell = 'sh'
-    return shell
+    """Detect the current shell and emulator.
+
+    1. Try the `SHELL` environ for shell.
+    2. Detect `CMDER_ROOT` for Cmder as emulator.
+    3. On Windows, walk the process hierarchy to detect shell and emulator.
+    4. On POSIX, default to `sh`. On Windows, default to `COMSPEC`.
+    """
+    shell = os.environ.get('SHELL', '')
+    if 'CMDER_ROOT' in os.environ:
+        emulator = 'cmder'
+    else:
+        emulator = ''
+    if windows:
+        shell, emulator = get_shell(os.getpid(), shell=shell, emulator=emulator)
+        if not shell:
+            shell = os.environ['COMSPEC']
+    elif not shell:
+        shell = 'sh'
+    return shell, emulator
+
 
 def shell(env, cwd=None):
     env = str(env)
-    shell = _detect_shell()
-    shell_name = Path(shell).stem
-    if shell_name not in ('Cmder', 'bash', 'elvish', 'powershell', 'pwsh', 'klingon', 'cmd'):
+    shell, emulator = _detect_shell()
+
+    shell_name = Path(shell).stem.lower()
+    emulator_name = Path(emulator).stem.lower()
+
+    if shell_name not in ('bash', 'elvish', 'powershell', 'pwsh', 'klingon', 'cmd'):
         # On Windows the PATH is usually set with System Utility
         # so we won't worry about trying to check mistakes there
         shell_check = (sys.executable + ' -c "from pipenv.patched.pew.pew import '
@@ -216,9 +231,9 @@ def shell(env, cwd=None):
         except CalledProcessError:
             return
     if shell_name == 'bash':
-        fork_bash(env, cwd)
-    elif shell_name == 'Cmder':
-        fork_cmder(env, cwd)
+        fork_bash(env, [shell], cwd)
+    elif emulator_name == 'cmder':
+        fork_cmder(env, [shell], cwd)
     else:
         fork_shell(env, [shell], cwd)
 
