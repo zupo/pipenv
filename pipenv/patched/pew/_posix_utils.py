@@ -8,10 +8,10 @@ import sys
 Process = collections.namedtuple('Process', 'args pid ppid')
 
 SHELL_NAMES = {
-    'sh', 'bash', 'dash',   # Bourne.
-    'csh', 'tcsh',          # C.
-    'ksh', 'zsh', 'fish',   # Common alternatives.
-    'pwsh', 'xonsh',        # More exotic.
+    'sh', 'bash', 'dash',       # Bourne.
+    'csh', 'tcsh',              # C.
+    'ksh', 'zsh', 'fish',       # Common alternatives.
+    'elvish', 'pwsh', 'xonsh',  # More exotic.
 }
 
 
