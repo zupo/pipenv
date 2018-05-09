@@ -42,7 +42,6 @@ def get_shell(pid=None, max_depth=6):
         pid = os.getpid()
     mapping = _get_process_mapping()
     login_shell = os.environ.get('SHELL', '')
-    guessed_shell = None
     for _ in range(max_depth):
         try:
             proc = mapping[pid]
@@ -57,8 +56,5 @@ def get_shell(pid=None, max_depth=6):
             if login_shell:
                 return login_shell
             return proc.args[0][1:]
-        elif 'sh' in name and not guessed_shell:
-            # Looks like a shell? Remember it as a fallback.
-            guessed_shell = proc.args[0]
         pid = proc.ppid     # Go up one level.
-    return guessed_shell
+    return None
