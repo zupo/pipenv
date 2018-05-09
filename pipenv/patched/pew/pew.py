@@ -40,8 +40,6 @@ else:
     InstallCommand = ListPythons = LocatePython = UninstallCommand = \
         lambda : sys.exit('Command not supported on this platform')
 
-    from ._win_utils import get_shell
-
 from pew._utils import (check_call, invoke, expandpath, own, env_bin_dir,
                         check_path, temp_environ, NamedTemporaryFile, to_unicode)
 from pew._print_utils import print_virtualenvs
@@ -256,15 +254,24 @@ SHELL_LOOKUP = collections.defaultdict(lambda: Shell, {
 
 
 def _detect_shell():
-    shell_cmd = os.environ.get('SHELL', '')
+    shell_cmd = ''
     emulator = ''
     if windows:
+        from ._win_utils import get_shell
+        shell_cmd = get_shell(os.getpid())
         if not shell_cmd:
-            shell_cmd = get_shell(os.getpid())
+            shell_cmd = os.environ.get('SHELL', '')
         if not shell_cmd:
-            shell_cmd = os.environ['COMSPEC']
+            shell_cmd = os.environ.get('COMSPEC', '')
         if 'CMDER_ROOT' in os.environ:
             emulator = 'cmder'
+    else:
+        from ._posix_utils import get_shell
+        shell_cmd = get_shell(os.getpid())
+        if not shell_cmd:
+            shell_cmd = os.environ.get('SHELL', '')
+    if not shell_cmd:
+        raise ValueError('no usable shell')
     shell_name = Path(shell_cmd).stem.lower()
     shell_cls = SHELL_LOOKUP[shell_name][emulator]
     return shell_cls(shell_cmd)
