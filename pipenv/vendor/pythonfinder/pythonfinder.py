@@ -3,7 +3,6 @@ import os
 import sys
 import delegator
 import platform
-from itertools import groupby
 from packaging.version import parse as parse_version
 from collections import defaultdict
 try:
@@ -95,7 +94,7 @@ class PathFinder(object):
 class PythonFinder(PathFinder):
     """Find pythons given a specific version, path, or nothing."""
 
-    PYENV_VERSIONS = defaultdict(list)
+    PYENV_VERSIONS = {}
     PYTHON_VERSIONS = defaultdict(list)
     PYTHON_PATHS = {}
     MAX_PYTHON = {}
@@ -222,31 +221,20 @@ class PythonFinder(PathFinder):
         return cls.PYTHON_VERSIONS[version]
 
     @classmethod
-    def _path_index(cls, path, reverse=False):
-        paths = cls.PATH.split(os.pathsep)
-        idx = len(paths) + 1 if not reverse else 0
-        for i, base in enumerate(paths):
-            if path.startswith(base):
-                idx = i if not reverse else len(paths) - i
-                break
-        return idx
-
-    @classmethod
-    def _path_precedence(cls, path1=None, path2=None):
+    def path_precedence(cls, path1=None, path2=None):
         paths = cls.PATH.split(os.pathsep)
         if path1 is None and path2 is not None:
             return path1
         if path2 is None and path1 is not None:
             return path1
-        index_1 = cls._path_index(path1)
-        index_2 = cls._path_index(path2)
+        index_1 = None
+        index_2 = None
+        for i, base in enumerate(paths):
+            if path1.startswith(base) and not index_1:
+                index_1 = i
+            if path2.startswith(base) and not index_2:
+                index_2 = i
         ordered = sorted([(path1, index_1), (path2, index_2)], key=lambda p: p[1])
-
-    @classmethod
-    def path_precedence(cls, path1=None, path2=None):
-        ordered = cls._path_precedence(path1, path2)
-        if not ordered:
-            return None
         return ordered[0][0]
 
     @classmethod
@@ -320,13 +308,43 @@ class PythonFinder(PathFinder):
             if cls.path_precedence(current_max_path, path) == path:
                 cls.MAX_PYTHON[parsed_version._version] = parsed_version._version
             return
-        cls.PYTHON_PATHS[path] = full_version
         pre = pre or parsed_version.is_prerelease
         major_minor = '.'.join(['{0}'.format(v) for v in parsed_version._version.release[:2]])
-        cls.PYTHON_VERSIONS[major_minor].append(full_version)
         major = '{0}'.format(parsed_version._version.release[0])
-        cls.PYTHON_VERSIONS[major].append(full_version)
-
+        current_major_max = parse_version(cls.MAX_PYTHON.get(major, '0'))
+        current_major_path = cls.PYTHON_VERSIONS.get(major)
+        current_major_minor_path = cls.PYTHON_VERSIONS.get(major_minor)
+        current_major_minor_max = parse_version(cls.MAX_PYTHON.get(major_minor, '0'))
+        current_full_max = parse_version(cls.MAX_PYTHON.get(full_version, '0'))
+        current_full_path = cls.PYTHON_VERSIONS.get(full_version)
+        cls.PYTHON_PATHS[path] = full_version
+        if not pre and parsed_version > current_major_minor_max or (parsed_version == current_major_minor_max and cls.path_precedence(path, current_major_minor_path) == path):
+            if major_minor != full_version:
+                if parsed_version > current_full_max or (parsed_version == current_full_max and cls.path_precedence(current_full_path, path) == path):
+                    cls.MAX_PYTHON[full_version] = parsed_version.base_version
+            cls.MAX_PYTHON[major_minor] = parsed_version.base_version
+            cls.PYTHON_VERSIONS[major_minor] = path
+            if arch == SYSTEM_ARCH or SYSTEM_ARCH.startswith(str(arch)):
+                if parsed_version > current_major_max or (parsed_version == current_major_max and cls.path_precedence(path, current_major_path) == path):
+                    cls.MAX_PYTHON[major] = parsed_version.base_version
+                    cls.PYTHON_VERSIONS[major] = path
+        if not pyenv:
+            for v in [full_version, major_minor, major]:
+                if not cls.PYTHON_VERSIONS.get(v) or cls.MAX_PYTHON.get(v) == full_version:
+                    if cls.MAX_PYTHON.get(v) == full_version and not (arch == SYSTEM_ARCH or SYSTEM_ARCH.startswith(str(arch))):
+                        pass
+                    else:
+                        cls.PYTHON_VERSIONS[v] = path
+                if not cls.PYTHON_ARCHS.get(v, {}).get(arch):
+                    cls.PYTHON_ARCHS[v][arch] = path
+        else:
+            for v in [full_version, major_minor, major]:
+                if (not cls.PYENV_VERSIONS.get(v) and (v == major and not pre) or v != major) or cls.MAX_PYTHON.get(v) == full_version:
+                    cls.PYENV_VERSIONS[v] = path
+            if not cls.PYTHON_VERSIONS.get(full_version):
+                cls.PYTHON_VERSIONS[full_version] = path
+            if not cls.PYTHON_ARCHS.get(v, {}).get(arch):
+                    cls.PYTHON_ARCHS[v][arch] = path
 
     @classmethod
     def populate_pyenv_runtimes(cls):
@@ -344,8 +362,3 @@ class PythonFinder(PathFinder):
                 if exes:
                     runtime = exes[0]
             cls.register_python(runtime, parsed_version.base_version, pre=parsed_version.is_prerelease, pyenv=True)
-
-    @classmethod
-    def calculate_max_pythons(cls):
-        for key, items in groupby(cls.PYTHON_PATHS.items(), lambda i: i[1]):
-            cls.MAX_PYTHON[key] = sorted(list(items), key=lambda i: cls._path_index(i[0]))
