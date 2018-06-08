@@ -325,7 +325,7 @@ def actually_resolve_deps(
 
 
 def venv_resolve_deps(
-    deps, pythonfinder, project, pre=False, verbose=False, clear=False, allow_global=False, pypi_mirror=None
+    deps, finder, project, pre=False, verbose=False, clear=False, allow_global=False, pypi_mirror=None
 ):
     from .vendor import delegator
     from . import resolver
@@ -334,7 +334,7 @@ def venv_resolve_deps(
         return []
     resolver = escape_grouped_arguments(resolver.__file__.rstrip('co'))
     cmd = '{0} {1} {2} {3} {4} {5}'.format(
-        escape_grouped_arguments(pythonfinder(system=allow_global).from_line('python')),
+        escape_grouped_arguments(str(finder.which('python'))),
         resolver,
         '--pre' if pre else '',
         '--verbose' if verbose else '',
@@ -366,7 +366,7 @@ def venv_resolve_deps(
 
 def resolve_deps(
     deps,
-    pythonfinder,
+    finder,
     project,
     sources=None,
     verbose=False,
@@ -382,7 +382,7 @@ def resolve_deps(
     from ._compat import TemporaryDirectory
     index_lookup = {}
     markers_lookup = {}
-    python_path = pythonfinder(system=allow_global).from_line('python')
+    python_path = str(finder.which('python'))
     backup_python_path = sys.executable
     results = []
     if not deps:
@@ -1151,7 +1151,7 @@ def install_or_update_vcs(vcs_obj, src_dir, name, rev=None):
 def get_vcs_deps(
     project,
     pip_freeze=None,
-    pythonfinder=None,
+    finder=None,
     verbose=False,
     clear=False,
     pre=False,
@@ -1216,7 +1216,7 @@ def get_vcs_deps(
             lockfiles.extend(
                 venv_resolve_deps(
                     ["-e {0}".format(pipfile_srcdir)],
-                    pythonfinder=pythonfinder,
+                    finder=finder,
                     verbose=verbose,
                     project=project,
                     clear=clear,
@@ -1229,7 +1229,7 @@ def get_vcs_deps(
             lockfiles.extend(
                 venv_resolve_deps(
                     ["-e {0}".format(lockfile_srcdir)],
-                    pythonfinder=pythonfinder,
+                    finder=finder,
                     verbose=verbose,
                     project=project,
                     clear=clear,

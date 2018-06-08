@@ -910,15 +910,14 @@ def graph(bare=False, json=False, json_tree=False, reverse=False):
 def run_open(module, three=None, python=None):
     from .core import ensure_project
     from .utils import escape_grouped_arguments, get_path
-    from .vendor.pythonfinder import PythonFinder
+    from .vendor.pythonfinder import Finder
 
     # Ensure that virtualenv is available.
     ensure_project(three=three, python=python, validate=False)
     from .core import project
-    search_path = get_path(project)
     c = delegator.run(
         '{0} -c "import {1}; print({1}.__file__);"'.format(
-            escape_grouped_arguments(PythonFinder(path=search_path).from_line('python')),
+            escape_grouped_arguments(str(Finder().which('python'))),
             module,
         )
     )

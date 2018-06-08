@@ -26,7 +26,7 @@ import six
 from .cmdparse import ScriptEmptyError
 from .project import Project, SourceNotFound
 from .vendor.requirementslib import Requirement
-from .vendor.pythonfinder.pythonfinder import PythonFinder
+from .vendor.pythonfinder import Finder
 from .utils import (
     convert_deps_to_pip,
     is_required_version,
@@ -129,6 +129,7 @@ def get_python(three=None, python=False, system=False):
     if PIPENV_PYTHON and python is False and three is None:
         python = PIPENV_PYTHON
     env = None
+    bin_dirname = 'Scripts' if os.name == 'nt' else 'bin'
     if system:
         if 'VIRTUAL_ENV' in os.environ:
             env = os.path.join(os.environ['VIRTUAL_ENV'], bin_dirname)
@@ -137,7 +138,7 @@ def get_python(three=None, python=False, system=False):
     else:
         if project.virtualenv_exists:
             env = project.virtualenv_location
-    finder = PythonFinder(venv=env, system=system)
+    finder = Finder(path=env, system=system)
     # Add pyenv paths to PATH.
     path_to_python = None
     USING_DEFAULT_PYTHON = (three is None and not python)
@@ -151,37 +152,27 @@ def get_python(three=None, python=False, system=False):
     }
     python = three_map[three] if not python else python
     try:
-        path_to_python = finder.from_version(python)
+        path_to_python = finder.find_python_version(python)
     except KeyError:
-        path_to_python = finder.from_line(python)
-    return finder
+        path_to_python = finder.which(python)
+    return str(path_to_python)
 
 
 def which(command, location=None, allow_global=False):
-    if not allow_global and location is None:
-        location = project.virtualenv_location or os.environ.get('VIRTUAL_ENV')
-    if not allow_global:
-        if os.name == 'nt':
-            p = find_windows_executable(
-                os.path.join(location, 'Scripts'), command,
-            )
-        else:
-            p = os.path.join(location, 'bin', command)
-    else:
-        if command == 'python':
-            p = sys.executable
-    if not os.path.exists(p):
-        if command == 'python':
-            p = sys.executable or system_which('python')
-        else:
-            p = system_which(command)
-    return p
+    if location:
+        bin_dir = 'Scripts' if os.name == 'nt' else 'bin'
+        location = os.path.join(location, bin_dir)
+    finder = Finder(path=location, system=allow_global)
+    p = finder.which(command)
+    if command == 'python' and allow_global and not p:
+        return sys.executable
+    return str(p)
 
 
 # Disable warnings for Python 2.6.
 if 'urllib3' in globals():
     urllib3.disable_warnings(InsecureRequestWarning)
-project = Project(finder=PythonFinder)
+project = Project(finder=Finder)
 
 
 def load_dot_env():
@@ -298,14 +289,15 @@ def ensure_pipfile(validate=True, skip_requirements=False, system=False):
     """Creates a Pipfile for the project, if it doesn't exist."""
     global USING_DEFAULT_PYTHON, PIPENV_VIRTUALENV
     # Assert Pipfile exists.
-    search_path = get_path(project) if PIPENV_VIRTUALENV and not system else os.environ.get('PATH')
     if USING_DEFAULT_PYTHON and not (PIPENV_VIRTUALENV or system):
+        finder = Finder(system=system)
         if PIPENV_DEFAULT_PYTHON_VERSION:
-            python = PythonFinder().from_version(PIPENV_DEFAULT_PYTHON_VERSION)
+            python = finder.find_python_version(PIPENV_DEFAULT_PYTHON_VERSION)
         else:
-            python = PythonFinder().from_line('python')
+            python = finder.which('python')
     else:
-        python = PythonFinder(path=search_path)('python')
+        python = Finder().which('python')
+    python = str(python)
     if project.pipfile_is_empty:
         # Show an error message and exit if system is passed and no pipfile exists
         if system and not PIPENV_VIRTUALENV:
@@ -439,11 +431,12 @@ def find_a_system_python(python):
 def ensure_python(three=None, python=None):
     # Support for the PIPENV_PYTHON environment variable.
     venv = None
+    bin_dir = 'Scripts' if os.name == 'nt' else 'bin'
     if PIPENV_PYTHON and python is False and three is None:
         python = PIPENV_PYTHON
         if project.virtualenv_exists:
-            venv = project.virtualenv_location
-    finder = PythonFinder(venv=venv)
+            venv = os.path.join(project.virtualenv_location, bin_dir)
+    finder = Finder(path=venv)
 
     def abort():
         click.echo(
@@ -464,15 +457,15 @@ def ensure_python(three=None, python=None):
         """Adds all pyenv installations to the PATH."""
         if PYENV_INSTALLED:
             if PYENV_ROOT:
-                pyenv_paths = finder.get_pyenv_versions()
-                for version_str, pyenv_path in pyenv_paths.items():
-                    version = parse_version(version_str)
-                    if version.is_prerelease and pyenv_paths.get(
-                        version.base_version
-                    ):
+                pyenv_paths = finder.system_path.pyenv_finder.versions
+                for version, pyenv_path_entry in pyenv_paths.items():
+                    # The dictionary key is a 5-tuple of the version + pre/dev flags
+                    major, minor, patch, pre, dev = version
+                    # If we find a pre-release, check whether there is a non-prerelease version
+                    if (pre or dev) and pyenv_paths.get((major, minor, patch, True, True)):
                         continue
 
-                    add_to_path(pyenv_path)
+                    add_to_path(pyenv_path_entry.base.as_posix())
             else:
                 click.echo(
                     '{0}: PYENV_ROOT is not set. New python paths will '
@@ -497,12 +490,12 @@ def ensure_python(three=None, python=None):
     python = python if python else three_map[three]
     if python:
         if PIPENV_PYTHON and venv:
-            path_to_python = finder.from_line(python)
+            path_to_python = finder.which(python)
         else:
             try:
-                path_to_python = finder.from_version(python)
+                path_to_python = finder.find_python_version(python)
             except KeyError:
-                path_to_python = finder.from_line(python)
+                path_to_python = finder.which(python)
     if not path_to_python and python is not None:
         # We need to install Python.
         click.echo(
@@ -580,22 +573,22 @@ def ensure_python(three=None, python=None):
                         click.echo(crayons.blue(c.out), err=True)
                     # Add new paths to PATH.
                     activate_pyenv()
-                    new_finder = PythonFinder(path=os.environ.get('PATH'))
+                    new_finder = Finder()
                     # Find the newly installed Python, hopefully.
-                    path_to_python = new_finder.from_version(version)
-                    try:
-                        assert finder.get_python_paths()[path_to_python] == version
-                    except AssertionError:
-                        click.echo(
-                            '{0}: The Python you just installed is not available on your {1}, apparently.'
-                            ''.format(
-                                crayons.red('Warning', bold=True),
-                                crayons.normal('PATH', bold=True),
-                            ),
-                            err=True,
-                        )
-                        sys.exit(1)
-    return path_to_python
+                    path_to_python = str(new_finder.find_python_version(version))
+                    # try:
+                    #     assert finder.get_python_paths()[path_to_python] == version
+                    # except AssertionError:
+                    #     click.echo(
+                    #         '{0}: The Python you just installed is not available on your {1}, apparently.'
+                    #         ''.format(
+                    #             crayons.red('Warning', bold=True),
+                    #             crayons.normal('PATH', bold=True),
+                    #         ),
+                    #         err=True,
+                    #     )
+                    #     sys.exit(1)
+    return str(path_to_python)
 
 
 def ensure_virtualenv(three=None, python=None, site_packages=False):
@@ -677,11 +670,10 @@ def ensure_project(
         if warn:
             # Warn users if they are using the wrong version of Python.
             if project.required_python_version:
-                search_path = get_path(project)
-                finder = PythonFinder(path=search_path)
-                path_to_python = finder.from_line('python') or finder.from_line('py')
+                finder = Finder()
+                path_to_python = finder.which('python') or finder.which('py')
                 if path_to_python and project.required_python_version not in (
-                    finder.get_python_paths()[path_to_python] or ''
+                    str(path_to_python.as_python.version) or ''
                 ):
                     click.echo(
                         '{0}: Your Pipfile requires {1} {2}, '
@@ -689,8 +681,8 @@ def ensure_project(
                             crayons.red('Warning', bold=True),
                             crayons.normal('python_version', bold=True),
                             crayons.blue(project.required_python_version),
-                            crayons.blue(python_version(path_to_python)),
-                            crayons.green(shorten_path(path_to_python)),
+                            crayons.blue(python_version(str(path_to_python))),
+                            crayons.green(shorten_path(str(path_to_python))),
                         ),
                         err=True,
                     )
@@ -1035,7 +1027,7 @@ def get_downloads_info(names_map, section):
         version = parse_download_fname(fname, name)
         # Get the hash of each file.
         cmd = '{0} hash "{1}"'.format(
-            escape_grouped_arguments(which_pip()),
+            escape_grouped_arguments(str(which_pip())),
             os.sep.join([project.download_location, fname]),
         )
         c = delegator.run(cmd)
@@ -1055,7 +1047,7 @@ def do_lock(
     pre=False,
     keep_outdated=False,
     write=True,
-    pypi_mirror = None,
+    pypi_mirror=None,
 ):
     """Executes the freeze functionality."""
     from .utils import get_vcs_deps
@@ -1097,14 +1089,14 @@ def do_lock(
             dev_packages[dev_package] = project.packages[dev_package]
     # Resolve dev-package dependencies, with pip-tools.
     pip_freeze = delegator.run(
-        '{0} freeze'.format(escape_grouped_arguments(which_pip(allow_global=system)))
+        '{0} freeze'.format(escape_grouped_arguments(str(which_pip(allow_global=system))))
     ).out
     deps = convert_deps_to_pip(
         dev_packages, project, r=False, include_index=True
     )
     results = venv_resolve_deps(
         deps,
-        pythonfinder=PythonFinder,
+        finder=Finder,
         verbose=verbose,
         project=project,
         clear=clear,
@@ -1131,7 +1123,7 @@ def do_lock(
             lockfile['develop'][dep['name']]['markers'] = dep['markers']
     # Add refs for VCS installs.
     # TODO: be smarter about this.
-    vcs_dev_lines, vcs_dev_lockfiles = get_vcs_deps(project, pip_freeze, pythonfinder=PythonFinder, verbose=verbose, clear=clear, pre=pre, allow_global=system, dev=True, pypi_mirror=pypi_mirror)
+    vcs_dev_lines, vcs_dev_lockfiles = get_vcs_deps(project, pip_freeze, finder=Finder, verbose=verbose, clear=clear, pre=pre, allow_global=system, dev=True, pypi_mirror=pypi_mirror)
     for lf in vcs_dev_lockfiles:
         try:
             name = first(lf.keys())
@@ -1155,7 +1147,7 @@ def do_lock(
     )
     results = venv_resolve_deps(
         deps,
-        pythonfinder=PythonFinder,
+        finder=Finder,
         verbose=verbose,
         project=project,
         clear=False,
@@ -1188,7 +1180,7 @@ def do_lock(
             lockfile['default'][dep['name']]['markers'] = dep['markers']
     # Add refs for VCS installs.
     # TODO: be smarter about this.
-    _vcs_deps, vcs_lockfiles = get_vcs_deps(project, pip_freeze, pythonfinder=PythonFinder, verbose=verbose, clear=clear, pre=pre, allow_global=system, dev=False, pypi_mirror=pypi_mirror)
+    _vcs_deps, vcs_lockfiles = get_vcs_deps(project, pip_freeze, finder=Finder, verbose=verbose, clear=clear, pre=pre, allow_global=system, dev=False, pypi_mirror=pypi_mirror)
     for lf in vcs_lockfiles:
         try:
             name = first(lf.keys())
@@ -1283,7 +1275,7 @@ def do_purge(bare=False, downloads=False, allow_global=False, verbose=False):
 
     freeze = delegator.run(
         '{0} freeze'.format(
-            escape_grouped_arguments(which_pip(allow_global=allow_global))
+            escape_grouped_arguments(str(which_pip(allow_global=allow_global)))
         )
     ).out
     # Remove comments from the output, if any.
@@ -1313,7 +1305,7 @@ def do_purge(bare=False, downloads=False, allow_global=False, verbose=False):
             )
         )
     command = '{0} uninstall {1} -y'.format(
-        escape_grouped_arguments(which_pip(allow_global=allow_global)),
+        escape_grouped_arguments(str(which_pip(allow_global=allow_global))),
         ' '.join(actually_installed),
     )
     if verbose:
@@ -1545,8 +1537,8 @@ def pip_install(
         install_reqs += ' --require-hashes'
     no_deps = '--no-deps' if no_deps else ''
     pre = '--pre' if pre else ''
-    quoted_pip = which_pip(allow_global=allow_global)
-    quoted_pip = escape_grouped_arguments(quoted_pip)
+    quoted_pip = str(which_pip(allow_global=allow_global))
+    quoted_pip = escape_grouped_arguments(str(quoted_pip))
     upgrade_strategy = '--upgrade --upgrade-strategy=only-if-needed' if selective_upgrade else ''
     pip_command = '{0} install {4} {5} {6} {7} {3} {1} {2} --exists-action w'.format(
         quoted_pip,
@@ -1579,7 +1571,7 @@ def pip_download(package_name):
     }
     for source in project.sources:
         cmd = '{0} download "{1}" -i {2} -d {3}'.format(
-            escape_grouped_arguments(which_pip()),
+            escape_grouped_arguments(str(which_pip())),
             package_name,
             source['url'],
             project.download_location,
@@ -1595,16 +1587,16 @@ def which_pip(allow_global=False):
     """Returns the location of virtualenv-installed pip."""
     if allow_global:
         if 'VIRTUAL_ENV' in os.environ:
-            finder = PythonFinder(venv=os.environ['VIRTUAL_ENV'])
+            finder = Finder(path=os.environ['VIRTUAL_ENV'])
             return finder.which('pip')
 
-        finder = PythonFinder(system=True)
+        finder = Finder(system=True)
         for p in ('pip', 'pip3', 'pip2'):
             where = finder.which(p)
             if where:
                 return where
 
-    return PythonFinder().which('pip')
+    return Finder().which('pip')
 
 
 def system_which(command, mult=False):
@@ -1774,18 +1766,16 @@ def ensure_lockfile(keep_outdated=False, pypi_mirror=None):
 
 def do_py(system=False):
     try:
-        search_path = get_path(project)
-        finder = PythonFinder(path=search_path, system=system)
-        click.echo(finder.from_line('python'))
+        finder = Finder(system=system)
+        click.echo(str(finder.which('python')))
     except AttributeError:
         click.echo(crayons.red('No project found!'))
 
 
 def do_outdated(pypi_mirror=None):
     packages = {}
-    search_path = get_path(project)
-    finder = PythonFinder(path=search_path)
-    results = delegator.run('{0} freeze'.format(finder.which('pip'))).out.strip(
+    finder = Finder()
+    results = delegator.run('{0} freeze'.format(str(finder.which('pip')))).out.strip(
     ).split(
         '\n'
     )
@@ -2192,7 +2182,7 @@ def do_uninstall(
     for package_name in package_names:
         click.echo(u'Un-installing {0}…'.format(crayons.green(package_name)))
         cmd = '{0} uninstall {1} -y'.format(
-            escape_grouped_arguments(which_pip(allow_global=system)),
+            escape_grouped_arguments(str(which_pip(allow_global=system))),
             package_name,
         )
         if verbose:
@@ -2316,12 +2306,13 @@ def do_shell(three=None, python=False, fancy=False, shell_args=None):
 
 def inline_activate_virtualenv():
     if project.virtualenv_exists:
-        finder = PythonFinder(venv=project.virtualenv_location)
+        bin_dir = 'Scripts' if os.name == 'nt' else 'bin'
+        search = os.path.join(project.virtualenv_location, bin_dir)
+        finder = Finder(path=search)
     else:
-        search_path = get_path(project)
-        finder = PythonFinder(path=search_path)
+        finder = Finder()
     try:
-        activate_this = finder.which('activate_this.py')
+        activate_this = str(finder.which('activate_this.py'))
         with open(activate_this) as f:
             code = compile(f.read(), activate_this, 'exec')
             exec(code, dict(__file__=activate_this))
@@ -2416,14 +2407,13 @@ def do_check(three=None, python=False, system=False, unused=False, args=None):
         else:
             sys.exit(0)
     click.echo(crayons.normal(u'Checking PEP 508 requirements…', bold=True))
-    search_path = get_path(project)
-    finder = PythonFinder(path=search_path, system=system)    
+    finder = Finder(system=system)    
     # if system:
     #     python = system_which('python')
     # else:
     #     python = which('python')
     # Run the PEP 508 checker in the virtualenv.
-    python = finder.from_line('python')
+    python = str(finder.which('python'))
     c = delegator.run(
         '{0} {1}'.format(
             escape_grouped_arguments(python),
@@ -2494,10 +2484,9 @@ def do_check(three=None, python=False, system=False, unused=False, args=None):
 
 def do_graph(bare=False, json=False, json_tree=False, reverse=False):
     import pipdeptree
-    search_path = get_path(project)
-    finder = PythonFinder(path=search_path)    
+    finder = Finder()
     try:
-        python_path = finder.from_line('python')
+        python_path = str(finder.which('python'))
     except AttributeError:
         click.echo(
             u'{0}: {1}'.format(
@@ -2662,7 +2651,7 @@ def do_clean(
     ensure_lockfile(pypi_mirror=pypi_mirror)
 
     installed_package_names = []
-    pip_freeze_command = delegator.run('{0} freeze'.format(which_pip()))
+    pip_freeze_command = delegator.run('{0} freeze'.format(str(which_pip())))
     for line in pip_freeze_command.out.split('\n'):
         installed = line.strip()
         if not installed or installed.startswith('#'):  # Comment or empty.
@@ -2704,7 +2693,7 @@ def do_clean(
             # Uninstall the package.
             c = delegator.run(
                 '{0} uninstall {1} -y'.format(
-                    which_pip(), apparent_bad_package
+                    str(which_pip()), apparent_bad_package
                 )
             )
             if c.return_code != 0:

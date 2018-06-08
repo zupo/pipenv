@@ -21,7 +21,7 @@ except ImportError:
 
 from .cmdparse import Script
 from .vendor.requirementslib.requirements import Requirement
-from .vendor.pythonfinder.pythonfinder import PythonFinder
+from .vendor.pythonfinder import Finder
 from .utils import (
     atomic_open_for_write,
     mkdir_p,
@@ -48,7 +48,6 @@ from .environments import (
     PIPENV_PYTHON,
     PIPENV_DEFAULT_PYTHON_VERSION,
 )
-from .vendor.first import first
 
 
 def _normalized(p):
@@ -112,7 +111,7 @@ class Project(object):
         self._lockfile_newlines = DEFAULT_NEWLINES
         self._requirements_location = None
         self._original_dir = os.path.abspath(os.curdir)
-        self.finder = finder if finder else PythonFinder 
+        self.finder = finder if finder else Finder
         self.python_version = python_version
         # Hack to skip this during pipenv run, or -r.
         if ('run' not in sys.argv) and chdir:
@@ -601,9 +600,8 @@ class Project(object):
         # Default requires.
         required_python = python
         if not python:
-            search_path = get_path(self)
-            finder = self.finder(path=search_path)
-            required_python = finder.from_line('python')
+            finder = self.finder()
+            required_python = str(finder.which('python'))
         version = python_version(required_python) or PIPENV_DEFAULT_PYTHON_VERSION
         if version and len(version) >= 3:
             data[u'requires'] = {
