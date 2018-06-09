@@ -275,7 +275,7 @@ def actually_resolve_deps(
     pip_options, _ = pip_command.parse_args(pip_args)
     session = pip_command._build_session(pip_options)
     pypi = PyPIRepository(
-        pip_options=pip_options, use_json=False, session=session
+        pip_options=pip_options, use_json=True, session=session
     )
     if verbose:
         logging.log.verbose = True
