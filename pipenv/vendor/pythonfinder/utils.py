@@ -2,6 +2,7 @@
 import attr
 import locale
 import os
+import six
 import subprocess
 import sys
 from fnmatch import fnmatch
@@ -28,14 +29,15 @@ def _run(cmd):
     """
     encoding = locale.getdefaultlocale()[1] or "utf-8"
     env = os.environ.copy()
-    c = subprocess.Popen(
-        cmd,
-        encoding=encoding,
-        env=env,
-        universal_newlines=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    popen_args = {
+        'env': env,
+        'universal_newlines': True,
+        'stdout': subprocess.PIPE,
+        'stdin': subprocess.PIPE
+    }
+    if six.PY3:
+        popen_args['encoding'] = encoding
+    c = subprocess.Popen(cmd, **popen_args)
     output, err = c.communicate()
     return output.strip(), err.strip()
 
