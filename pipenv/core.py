@@ -1006,7 +1006,7 @@ def do_lock(
     pre=False,
     keep_outdated=False,
     write=True,
-    pypi_mirror = None,
+    pypi_mirror=None,
 ):
     """Executes the freeze functionality."""
     from .utils import get_vcs_deps
