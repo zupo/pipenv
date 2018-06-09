@@ -325,7 +325,7 @@ def actually_resolve_deps(
 
 
 def venv_resolve_deps(
-    deps, which, project, pre=False, verbose=False, clear=False, allow_global=False, pypi_mirror=None
+    deps, finder, project, pre=False, verbose=False, clear=False, allow_global=False, pypi_mirror=None
 ):
     from .vendor import delegator
     from . import resolver
@@ -334,7 +334,7 @@ def venv_resolve_deps(
         return []
     resolver = escape_grouped_arguments(resolver.__file__.rstrip('co'))
     cmd = '{0} {1} {2} {3} {4} {5}'.format(
-        escape_grouped_arguments(which('python', allow_global=allow_global)),
+        escape_grouped_arguments(str(finder.which('python'))),
         resolver,
         '--pre' if pre else '',
         '--verbose' if verbose else '',
@@ -366,7 +366,7 @@ def venv_resolve_deps(
 
 def resolve_deps(
     deps,
-    which,
+    finder,
     project,
     sources=None,
     verbose=False,
@@ -382,7 +382,7 @@ def resolve_deps(
     from ._compat import TemporaryDirectory
     index_lookup = {}
     markers_lookup = {}
-    python_path = which('python', allow_global=allow_global)
+    python_path = str(finder.which('python'))
     backup_python_path = sys.executable
     results = []
     if not deps:
@@ -1148,7 +1148,7 @@ def install_or_update_vcs(vcs_obj, src_dir, name, rev=None):
 def get_vcs_deps(
     project,
     pip_freeze=None,
-    which=None,
+    finder=None,
     verbose=False,
     clear=False,
     pre=False,
@@ -1261,3 +1261,12 @@ def fs_str(string):
 
 
 _fs_encoding = sys.getfilesystemencoding() or sys.getdefaultencoding()
+
+
+def get_path(project):
+    search_path = os.environ.get('PATH')
+    if project.virtualenv_exists:
+        bin_dir = 'Scripts' if os.name == 'nt' else 'bin'
+        venv_bin_dir = os.path.join(project.virtualenv_location, bin_dir)
+        search_path = '{0}{1}{2}'.format(venv_bin_dir, os.pathsep, search_path)
+    return search_path

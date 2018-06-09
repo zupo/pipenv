@@ -21,6 +21,7 @@ except ImportError:
 
 from .cmdparse import Script
 from .vendor.requirementslib.requirements import Requirement
+from .vendor.pythonfinder import Finder
 from .utils import (
     atomic_open_for_write,
     mkdir_p,
@@ -36,6 +37,7 @@ from .utils import (
     python_version,
     safe_expandvars,
     is_star,
+    get_path,
 )
 from .environments import (
     PIPENV_MAX_DEPTH,
@@ -46,7 +48,6 @@ from .environments import (
     PIPENV_PYTHON,
     PIPENV_DEFAULT_PYTHON_VERSION,
 )
-from .vendor.first import first
 
 
 def _normalized(p):
@@ -99,7 +100,7 @@ class SourceNotFound(KeyError):
 class Project(object):
     """docstring for Project"""
 
-    def __init__(self, which=None, python_version=None, chdir=True):
+    def __init__(self, finder=None, python_version=None, chdir=True):
         super(Project, self).__init__()
         self._name = None
         self._virtualenv_location = None
@@ -110,7 +111,7 @@ class Project(object):
         self._lockfile_newlines = DEFAULT_NEWLINES
         self._requirements_location = None
         self._original_dir = os.path.abspath(os.curdir)
-        self.which = which
+        self.finder = finder if finder else Finder
         self.python_version = python_version
         # Hack to skip this during pipenv run, or -r.
         if ('run' not in sys.argv) and chdir:
@@ -599,10 +600,8 @@ class Project(object):
         # Default requires.
         required_python = python
         if not python:
-            if self.virtualenv_location:
-                required_python = self.which('python', self.virtualenv_location)
-            else:
-                required_python = self.which('python')
+            finder = self.finder()
+            required_python = str(finder.which('python'))
         version = python_version(required_python) or PIPENV_DEFAULT_PYTHON_VERSION
         if version and len(version) >= 3:
             data[u'requires'] = {
