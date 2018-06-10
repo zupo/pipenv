@@ -474,7 +474,7 @@ def ensure_python(three=None, python=None):
                     err=True,
                 )
 
-    path_to_python = get_python(three=three, python=python)
+    path_to_python = get_python(three=three, python=python, as_path=False)
     global USING_DEFAULT_PYTHON
     # Add pyenv paths to PATH.
     if not path_to_python and python is not None:
@@ -555,9 +555,9 @@ def ensure_python(three=None, python=None):
                     # Add new paths to PATH.
                     activate_pyenv()
                     # Find the newly installed Python, hopefully.
-                    path_to_python = get_python(python=python, three=three)
+                    path_to_python = get_python(python=python, three=three, as_path=False)
                     try:
-                        assert get_python_version(path_to_python) == version
+                        assert str(path_to_python.as_python.version) == version
                     except AssertionError:
                         click.echo(
                             '{0}: The Python you just installed is not available on your {1}, apparently.'
@@ -655,7 +655,7 @@ def ensure_project(
                 python_pathentry = get_python(three=three, python=python, system=system, as_path=False)
                 path_to_python = python_pathentry.path.as_posix()
                 try:
-                    python_version = '.'.join([str(v) for v in python_pathentry.as_python.version_tuple[:3]])
+                    python_version = str(path_to_python.as_python.version)
                 except InvalidPythonVersion:
                     python_version = ''
                 if path_to_python and not python_version.startswith(project.required_python_version):
