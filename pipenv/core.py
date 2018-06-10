@@ -655,7 +655,7 @@ def ensure_project(
                 python_pathentry = get_python(three=three, python=python, system=system, as_path=False)
                 path_to_python = python_pathentry.path.as_posix()
                 try:
-                    python_version = '.'.join(python_pathentry.as_python.version_tuple[:3])
+                    python_version = '.'.join([str(v) for v in python_pathentry.as_python.version_tuple[:3]])
                 except InvalidPythonVersion:
                     python_version = ''
                 if path_to_python and not python_version.startswith(project.required_python_version):
