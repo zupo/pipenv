@@ -1,4 +1,5 @@
 # -*- coding=utf-8 -*-
+from __future__ import print_function, absolute_import
 import attr
 import operator
 import os
@@ -7,6 +8,7 @@ from collections import defaultdict
 from . import BasePath
 from .python import PythonVersion
 from ..environment import PYENV_INSTALLED, PYENV_ROOT
+from ..exceptions import InvalidPythonVersion
 from ..utils import (
     optional_instance_of,
     filter_pythons,
@@ -51,7 +53,7 @@ class SystemPath(object):
         for p in self.python_executables:
             try:
                 version_object = PythonVersion.from_path(p)
-            except ValueError:
+            except (ValueError, InvalidPythonVersion):
                 continue
             version_dict[version_object.version_tuple].append(version_object)
         return version_dict
@@ -112,16 +114,17 @@ class SystemPath(object):
         self.paths.update({p.path: p for p in root_paths})
 
     def get_path(self, path):
-        _path = self.paths.get(path)
-        if not _path and path in self.path_order:
-            self.paths[path] = PathEntry.create(
-                path=path, is_root=True, only_python=self.only_python
+        path = Path(path)
+        _path = self.paths.get(path.as_posix())
+        if not _path and path.as_posix() in self.path_order:
+            self.paths[path.as_posix()] = PathEntry.create(
+                path=path.resolve(), is_root=True, only_python=self.only_python
             )
-        return self.paths.get(path)
+        return self.paths.get(path.as_posix())
 
     def find_all(self, executable):
         """Search the path for an executable. Return all copies.
-        
+
         :param executable: Name of the executable
         :type executable: str
         :returns: List[PathEntry]
@@ -161,8 +164,8 @@ class SystemPath(object):
             windows_finder_version = sub_finder(self.windows_finder)
             if windows_finder_version:
                 return windows_finder_version
-        paths = [self.get_path(k) for k in self.path_order]
-        path_filter = filter(None, [sub_finder(p) for p in paths])
+        paths = (self.get_path(k) for k in self.path_order)
+        path_filter = filter(None, (sub_finder(p) for p in paths if p is not None))
         version_sort = operator.attrgetter("as_python.version")
         return [c for c in sorted(path_filter, key=version_sort, reverse=True)]
 
@@ -186,8 +189,8 @@ class SystemPath(object):
             windows_finder_version = sub_finder(self.windows_finder)
             if windows_finder_version:
                 return windows_finder_version
-        paths = [self.get_path(k) for k in self.path_order]
-        path_filter = filter(None, [sub_finder(p) for p in paths])
+        paths = (self.get_path(k) for k in self.path_order)
+        path_filter = filter(None, (sub_finder(p) for p in paths if p is not None))
         version_sort = operator.attrgetter("as_python.version")
         return next(
             (c for c in sorted(path_filter, key=version_sort, reverse=True)), None
@@ -216,7 +219,7 @@ class SystemPath(object):
         path_entries.update(
             {
                 p.as_posix(): PathEntry.create(
-                    path=p, is_root=True, only_python=only_python
+                    path=p.absolute(), is_root=True, only_python=only_python
                 )
                 for p in _path_objects
             }
@@ -258,9 +261,8 @@ class PathEntry(BasePath):
             if not self.py_version:
                 try:
                     from .python import PythonVersion
-
                     self.py_version = PythonVersion.from_path(self.path)
-                except ValueError:
+                except (ValueError, InvalidPythonVersion):
                     self.py_version = None
         return self.py_version
 

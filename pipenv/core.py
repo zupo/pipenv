@@ -124,6 +124,18 @@ if PIPENV_NOSPIN:
         yield
 
 
+def get_finder(system=False):
+    bin_dirname = 'Scripts' if os.name == 'nt' else 'bin'    
+    if system:
+        if 'VIRTUAL_ENV' in os.environ:
+            env = (Path(os.environ.get('VIRTUAL_ENV')) / bin_dirname).as_posix()
+            system = False
+    else:
+        if project.virtualenv_exists:
+            env = (Path(project.virtualenv_location) / bin_dirname).as_posix()
+    return Finder(path=env, system=system)
+
+
 def get_python(three=None, python=False, system=False):
     global USING_DEFAULT_PYTHON
     if PIPENV_PYTHON and python is False and three is None:
@@ -159,10 +171,12 @@ def get_python(three=None, python=False, system=False):
 
 
 def which(command, location=None, allow_global=False):
+    bin_dir = 'Scripts' if os.name == 'nt' else 'bin'
+    if not location and not allow_global and project.virtualenv_location:
+        location = project.virtualenv_location
     if location:
-        bin_dir = 'Scripts' if os.name == 'nt' else 'bin'
-        location = os.path.join(location, bin_dir)
-    finder = Finder(path=location, system=allow_global)
+        location = Path(location) / bin_dir
+        finder = Finder(path=location.as_posix(), system=allow_global)
     p = finder.which(command)
     if command == 'python' and allow_global and not p:
         return sys.executable
@@ -462,7 +476,7 @@ def ensure_python(three=None, python=None):
                     # The dictionary key is a 5-tuple of the version + pre/dev flags
                     major, minor, patch, pre, dev = version
                     # If we find a pre-release, check whether there is a non-prerelease version
-                    if (pre or dev) and pyenv_paths.get((major, minor, patch, True, True)):
+                    if (pre or dev) and pyenv_paths.get((major, minor, patch, False, False)):
                         continue
 
                     add_to_path(pyenv_path_entry.base.as_posix())
@@ -657,6 +671,8 @@ def ensure_project(
     skip_requirements=False,
 ):
     """Ensures both Pipfile and virtualenv exist for the project."""
+    from .vendor.pythonfinder.utils import get_python_version
+    from .vendor.pythonfinder.exceptions import InvalidPythonVersion
     # Automatically use an activated virtualenv.
     if PIPENV_USE_SYSTEM:
         system = True
@@ -670,11 +686,12 @@ def ensure_project(
         if warn:
             # Warn users if they are using the wrong version of Python.
             if project.required_python_version:
-                finder = Finder()
-                path_to_python = finder.which('python') or finder.which('py')
-                if path_to_python and project.required_python_version not in (
-                    str(path_to_python.as_python.version) or ''
-                ):
+                path_to_python = get_python(three=three, python=python, system=system)
+                try:
+                    python_version = get_python_version(path_to_python)
+                except InvalidPythonVersion:
+                    python_version = ''
+                if path_to_python and project.required_python_version not in python_version:
                     click.echo(
                         '{0}: Your Pipfile requires {1} {2}, '
                         'but you are using {3} ({4}).'.format(
@@ -1051,6 +1068,7 @@ def do_lock(
 ):
     """Executes the freeze functionality."""
     from .utils import get_vcs_deps
+    finder = get_finder(system=system)
     cached_lockfile = {}
     if not pre:
         pre = project.settings.get('allow_prereleases')
@@ -1129,9 +1147,10 @@ def do_lock(
             pipfile_entry = settings['packages'][dep['name']] if is_top_level else None
             dep_lockfile = clean_resolved_dep(dep, is_top_level=is_top_level, pipfile_entry=pipfile_entry)
             lockfile[settings['lockfile_key']].update(dep_lockfile)
+        print(lockfile[settings['lockfile_key']])
         # Add refs for VCS installs.
         # TODO: be smarter about this.
-        vcs_lines, vcs_lockfile = get_vcs_deps(
+        vcs_reqs, vcs_lockfile = get_vcs_deps(
             project,
             pip_freeze,
             finder=finder,
@@ -1141,6 +1160,7 @@ def do_lock(
             allow_global=system,
             dev=settings['dev']
         )
+        vcs_lines = [req.as_line() for req in vcs_reqs if req.editable]
         vcs_results = venv_resolve_deps(
             vcs_lines,
             finder=finder,
@@ -1154,11 +1174,14 @@ def do_lock(
         for dep in vcs_results:
             if not hasattr(dep, 'keys') or not hasattr(dep['name'], 'keys'):
                 continue
-            is_top_level = dep['name'] in vcs_lockfile
-            pipfile_entry = vcs_lockfile[dep['name']] if is_top_level else None
+            normalized = pep423_name(dep['name'])
+            is_top_level = dep['name'] in vcs_lockfile or normalized in vcs_lockfile
+            lockfile_key = next(k for k in [dep['name'], normalized] if k in vcs_lockfile)
+            pipfile_entry = vcs_lockfile[lockfile_key] if is_top_level else None
             dep_lockfile = clean_resolved_dep(dep, is_top_level=is_top_level, pipfile_entry=pipfile_entry)
             vcs_lockfile.update(dep_lockfile)
         lockfile[settings['lockfile_key']].update(vcs_lockfile)
+        print(vcs_lockfile)
     # Support for --keep-outdated…
     if keep_outdated:
         for section_name, section in (
@@ -1414,10 +1437,11 @@ def pip_install(
     selective_upgrade=False,
     requirements_dir=None,
     extra_indexes=None,
-    pypi_mirror = None,
+    pypi_mirror=None,
 ):
     from notpip._internal import logger as piplogger
     from notpip._vendor.pyparsing import ParseException
+    finder = get_finder(system=allow_global)
 
     if verbose:
         click.echo(
@@ -1507,8 +1531,8 @@ def pip_install(
         install_reqs += ' --require-hashes'
     no_deps = '--no-deps' if no_deps else ''
     pre = '--pre' if pre else ''
-    quoted_pip = str(which_pip(allow_global=allow_global))
-    quoted_pip = escape_grouped_arguments(str(quoted_pip))
+    quoted_pip = str(which('pip'))
+    quoted_pip = escape_grouped_arguments(quoted_pip)
     upgrade_strategy = '--upgrade --upgrade-strategy=only-if-needed' if selective_upgrade else ''
     pip_command = '{0} install {4} {5} {6} {7} {3} {1} {2} --exists-action w'.format(
         quoted_pip,
@@ -1555,9 +1579,11 @@ def pip_download(package_name):
 
 def which_pip(allow_global=False):
     """Returns the location of virtualenv-installed pip."""
+    bin_dir = 'Scripts' if os.name == 'nt' else 'bin'
     if allow_global:
         if 'VIRTUAL_ENV' in os.environ:
-            finder = Finder(path=os.environ['VIRTUAL_ENV'])
+            venv = Path(os.environ['VIRTUAL_ENV']) / bin_dir
+            finder = Finder(path=venv.as_posix())
             return finder.which('pip')
 
         finder = Finder(system=True)
@@ -1565,8 +1591,13 @@ def which_pip(allow_global=False):
             where = finder.which(p)
             if where:
                 return where
+    else:
+        env = None
+        if project.virtualenv_location:
+            env = Path(project.virtualenv_location) / bin_dir
+            finder = Finder(path=env.as_posix())
 
-    return Finder().which('pip')
+    return finder.which('pip')
 
 
 def system_which(command, mult=False):

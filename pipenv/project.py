@@ -502,18 +502,20 @@ class Project(object):
 
     def _get_editable_packages(self, dev=False):
         section = 'dev-packages' if dev else 'packages'
+        pfile = dict(self.parsed_pipfile)
         packages = {
             k: v
-            for k, v in self.parsed_pipfile.get(section, {}).items()
+            for k, v in pfile.get(section, {}).items()
             if is_editable(v)
         }
         return packages
 
     def _get_vcs_packages(self, dev=False):
         section = 'dev-packages' if dev else 'packages'
+        pfile = dict(self.parsed_pipfile)
         packages = {
             k: v
-            for k, v in self.parsed_pipfile.get(section, {}).items()
+            for k, v in pfile.get(section, {}).items()
             if is_vcs(v) or is_vcs(k)
         }
         return packages or {}

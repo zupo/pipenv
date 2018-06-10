@@ -15,10 +15,6 @@ def _patch_path():
         sys.path.append(site_packages_dir)
 
 
-def which(*args, **kwargs):
-    return sys.executable
-
-
 def main():
     is_verbose = '--verbose' in ' '.join(sys.argv)
     do_pre = '--pre' in ' '.join(sys.argv)
@@ -52,10 +48,12 @@ def main():
     project = pipenv.core.project
 
     def resolve(packages, pre, sources, verbose, clear, system):
+        from pipenv.vendor.pythonfinder import Finder
+        finder = Finder()
         import pipenv.utils
         return pipenv.utils.resolve_deps(
             packages,
-            which,
+            finder,
             project=project,
             pre=pre,
             sources=sources,

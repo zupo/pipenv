@@ -1,4 +1,5 @@
 # -*- coding=utf-8 -*-
+from __future__ import print_function, absolute_import
 import abc
 import operator
 import six
@@ -59,16 +60,16 @@ class BasePath(object):
         is_py = operator.attrgetter("is_python")
         py_version = operator.attrgetter("as_python")
         if not self.is_dir:
-            if self.is_python:
-                return self if version_matcher(self.as_python) else None
+            if self.is_python and self.as_python.matches(major, minor=minor, patch=patch, pre=pre, dev=dev):
+                return self
             return
-        finder = (c for c in self.children.values() if is_py(c) and py_version(c))
+        finder = ((child, child.as_python) for child in self.children.values() if child.is_python and child.as_python)
         py_filter = filter(
-            None, filter(lambda c: version_matcher(py_version(c)), finder)
+            None, filter(lambda child: version_matcher(child[1]), finder)
         )
-        version_sort = operator.attrgetter("py_version.version")
+        version_sort = operator.attrgetter("version")
         return next(
-            (c for c in sorted(py_filter, key=version_sort, reverse=True)), None
+            (c[0] for c in sorted(py_filter, key=lambda child: child[1].version, reverse=True)), None
         )
 
 
