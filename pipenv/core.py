@@ -136,7 +136,7 @@ def get_finder(system=False):
     return Finder(path=env, system=system)
 
 
-def get_python(three=None, python=False, system=False):
+def get_python(three=None, python=False, system=False, as_path=True):
     global USING_DEFAULT_PYTHON
     if PIPENV_PYTHON and python is False and three is None:
         python = PIPENV_PYTHON
@@ -157,6 +157,8 @@ def get_python(three=None, python=False, system=False):
         path_to_python = finder.find_python_version(python)
     except KeyError:
         path_to_python = finder.which(python)
+    if not as_path:
+        return path_to_python
     return str(path_to_python)
 
 
@@ -650,12 +652,13 @@ def ensure_project(
         if warn:
             # Warn users if they are using the wrong version of Python.
             if project.required_python_version:
-                path_to_python = get_python(three=three, python=python, system=system)
+                python_pathentry = get_python(three=three, python=python, system=system, as_path=False)
+                path_to_python = python_pathentry.path.as_posix()
                 try:
-                    python_version = get_python_version(path_to_python)
+                    python_version = '.'.join(python_pathentry.as_python.version_tuple[:3])
                 except InvalidPythonVersion:
                     python_version = ''
-                if path_to_python and project.required_python_version not in python_version:
+                if path_to_python and not python_version.startswith(project.required_python_version):
                     click.echo(
                         '{0}: Your Pipfile requires {1} {2}, '
                         'but you are using {3} ({4}).'.format(
@@ -1111,7 +1114,6 @@ def do_lock(
             pipfile_entry = settings['packages'][dep['name']] if is_top_level else None
             dep_lockfile = clean_resolved_dep(dep, is_top_level=is_top_level, pipfile_entry=pipfile_entry)
             lockfile[settings['lockfile_key']].update(dep_lockfile)
-        print(lockfile[settings['lockfile_key']])
         # Add refs for VCS installs.
         # TODO: be smarter about this.
         vcs_reqs, vcs_lockfile = get_vcs_deps(
@@ -1145,7 +1147,6 @@ def do_lock(
             dep_lockfile = clean_resolved_dep(dep, is_top_level=is_top_level, pipfile_entry=pipfile_entry)
             vcs_lockfile.update(dep_lockfile)
         lockfile[settings['lockfile_key']].update(vcs_lockfile)
-        print(vcs_lockfile)
     # Support for --keep-outdated…
     if keep_outdated:
         for section_name, section in (

@@ -47,7 +47,10 @@ def _run(cmd):
 def get_python_version(path):
     """Get python version string using subprocess from a given path."""
     version_cmd = [path, "-c", "import sys; print(sys.version.split()[0])"]
-    out, err = _run(version_cmd)
+    try:
+        out, err = _run(version_cmd)
+    except OSError:
+        raise InvalidPythonVersion("%s is not a valid python path" % path)
     if not out:
         raise InvalidPythonVersion("%s is not a valid python path" % path)
     return out
