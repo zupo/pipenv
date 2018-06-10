@@ -138,7 +138,7 @@ def get_finder(system=False):
 
 def get_python(three=None, python=False, system=False, as_path=True):
     global USING_DEFAULT_PYTHON
-    if PIPENV_PYTHON and python is False and three is None:
+    if PIPENV_PYTHON and not python and three is None:
         python = PIPENV_PYTHON
     finder = get_finder(system=system)
     # Add pyenv paths to PATH.
