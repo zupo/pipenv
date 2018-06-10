@@ -140,17 +140,7 @@ def get_python(three=None, python=False, system=False):
     global USING_DEFAULT_PYTHON
     if PIPENV_PYTHON and python is False and three is None:
         python = PIPENV_PYTHON
-    env = None
-    bin_dirname = 'Scripts' if os.name == 'nt' else 'bin'
-    if system:
-        if 'VIRTUAL_ENV' in os.environ:
-            env = os.path.join(os.environ['VIRTUAL_ENV'], bin_dirname)
-            # set system to false to keep the virtualenv on top of path and prefer it
-            system = False
-    else:
-        if project.virtualenv_exists:
-            env = os.path.join(project.virtualenv_location, bin_dirname)
-    finder = Finder(path=env, system=system)
+    finder = get_finder(system=system)
     # Add pyenv paths to PATH.
     path_to_python = None
     USING_DEFAULT_PYTHON = (three is None and not python)
@@ -444,13 +434,6 @@ def find_a_system_python(python):
 
 def ensure_python(three=None, python=None):
     # Support for the PIPENV_PYTHON environment variable.
-    venv = None
-    bin_dir = 'Scripts' if os.name == 'nt' else 'bin'
-    if PIPENV_PYTHON and python is False and three is None:
-        python = PIPENV_PYTHON
-        if project.virtualenv_exists:
-            venv = os.path.join(project.virtualenv_location, bin_dir)
-    finder = Finder(path=venv)
 
     def abort():
         click.echo(
@@ -465,9 +448,10 @@ def ensure_python(three=None, python=None):
         )
         sys.exit(1)
 
-    def activate_pyenv():
+    def activate_pyenv(finder=None):
         from notpip._vendor.packaging.version import parse as parse_version
-
+        if not finder:
+            finder = get_finder()
         """Adds all pyenv installations to the PATH."""
         if PYENV_INSTALLED:
             if PYENV_ROOT:
@@ -488,28 +472,9 @@ def ensure_python(three=None, python=None):
                     err=True,
                 )
 
+    path_to_python = get_python(three=three, python=python)
     global USING_DEFAULT_PYTHON
     # Add pyenv paths to PATH.
-    activate_pyenv()
-    path_to_python = None
-    USING_DEFAULT_PYTHON = (three is None and not python)
-    # Find out which python is desired.
-    # CLI flags win
-    three_map = {
-        True: '3',
-        False: '2',
-        # fall back to pipfile, environment, then system
-        None: first([project.required_python_version, PIPENV_DEFAULT_PYTHON_VERSION])
-    }
-    python = python if python else three_map[three]
-    if python:
-        if PIPENV_PYTHON and venv:
-            path_to_python = finder.which(python)
-        else:
-            try:
-                path_to_python = finder.find_python_version(python)
-            except KeyError:
-                path_to_python = finder.which(python)
     if not path_to_python and python is not None:
         # We need to install Python.
         click.echo(
@@ -587,21 +552,20 @@ def ensure_python(three=None, python=None):
                         click.echo(crayons.blue(c.out), err=True)
                     # Add new paths to PATH.
                     activate_pyenv()
-                    new_finder = Finder()
                     # Find the newly installed Python, hopefully.
-                    path_to_python = str(new_finder.find_python_version(version))
-                    # try:
-                    #     assert finder.get_python_paths()[path_to_python] == version
-                    # except AssertionError:
-                    #     click.echo(
-                    #         '{0}: The Python you just installed is not available on your {1}, apparently.'
-                    #         ''.format(
-                    #             crayons.red('Warning', bold=True),
-                    #             crayons.normal('PATH', bold=True),
-                    #         ),
-                    #         err=True,
-                    #     )
-                    #     sys.exit(1)
+                    path_to_python = get_python(python=python, three=three)
+                    try:
+                        assert get_python_version(path_to_python) == version
+                    except AssertionError:
+                        click.echo(
+                            '{0}: The Python you just installed is not available on your {1}, apparently.'
+                            ''.format(
+                                crayons.red('Warning', bold=True),
+                                crayons.normal('PATH', bold=True),
+                            ),
+                            err=True,
+                        )
+                        sys.exit(1)
     return str(path_to_python)
 
 

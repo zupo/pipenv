@@ -41,7 +41,7 @@ class Finder(object):
             and isinstance(major, six.string_types)
         ):
             from .models import PythonVersion
-
+            version_dict = {}
             if "." in major:
                 version_dict = PythonVersion.parse(major)
             elif len(major) == 1:
@@ -52,11 +52,11 @@ class Finder(object):
                     'is_prerelease': False,
                     'is_devrelease': False
                 }
-            major = version_dict["major"]
-            minor = version_dict["minor"]
-            patch = version_dict["patch"]
-            pre = version_dict["is_prerelease"]
-            dev = version_dict["is_devrelease"]
+            major = version_dict.get("major", major)
+            minor = version_dict[.get("minor", minor)
+            patch = version_dict.get("patch", patch)
+            pre = version_dict.get("is_prerelease", is_prerelease)
+            dev = version_dict.get("is_devrelease", is_devrelease)
         if os.name == "nt":
             match = self.windows_finder.find_python_version(
                 major, minor=minor, patch=patch, pre=pre, dev=dev
