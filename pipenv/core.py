@@ -125,14 +125,14 @@ if PIPENV_NOSPIN:
 
 
 def get_finder(system=False):
-    bin_dirname = 'Scripts' if os.name == 'nt' else 'bin'    
+    bin_dirname = 'Scripts' if os.name == 'nt' else 'bin'
+    env = None
     if system:
         if 'VIRTUAL_ENV' in os.environ:
             env = (Path(os.environ.get('VIRTUAL_ENV')) / bin_dirname).as_posix()
             system = False
-    else:
-        if project.virtualenv_exists:
-            env = (Path(project.virtualenv_location) / bin_dirname).as_posix()
+    if project.virtualenv_exists:
+        env = (Path(project.virtualenv_location) / bin_dirname).as_posix()
     return Finder(path=env, system=system)
 
 
