@@ -61,6 +61,7 @@ FILE_WHITE_LIST = (
     'safety.zip',
     'cacert.pem',
     'vendor_pip.txt',
+    'vendor_requirementslib.txt',
 )
 
 PATCHED_RENAMES = {
@@ -493,9 +494,9 @@ def main(ctx):
     vendor(ctx, patched_dir, rewrite=True)
     download_licenses(ctx, vendor_dir)
     download_licenses(ctx, patched_dir, 'patched.txt')
-    for pip_dir in [patched_dir / 'notpip']:
-        _vendor_dir = pip_dir / '_vendor'
-        vendor_src_file = vendor_dir / 'vendor_pip.txt'
+    for subvendored_dir in [patched_dir / 'notpip', vendor_dir / 'requirementslib']:
+        _vendor_dir = subvendored_dir / '_vendor'
+        vendor_src_file = vendor_dir / 'vendor_{0}.txt'.format(subvendored_dir.name)
         vendor_file = _vendor_dir / 'vendor.txt'
         vendor_file.write_bytes(vendor_src_file.read_bytes())
         download_licenses(ctx, _vendor_dir)
