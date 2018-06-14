@@ -496,7 +496,7 @@ def main(ctx):
     download_licenses(ctx, patched_dir, 'patched.txt')
     for subvendored_dir in [patched_dir / 'notpip', vendor_dir / 'requirementslib']:
         _vendor_dir = subvendored_dir / '_vendor'
-        vendor_src_file = vendor_dir / 'vendor_{0}.txt'.format(subvendored_dir.name)
+        vendor_src_file = vendor_dir / 'vendor_{0}.txt'.format(subvendored_dir.name if name != 'notpip' else 'pip')
         vendor_file = _vendor_dir / 'vendor.txt'
         vendor_file.write_bytes(vendor_src_file.read_bytes())
         download_licenses(ctx, _vendor_dir)
