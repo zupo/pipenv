@@ -31,7 +31,7 @@ requests==2.18.4
     urllib3==1.22
     certifi==2018.1.18
 requirements-parser==0.2.0
-requirementslib
+git+https://github.com/sarugaku/requirementslib.git@master#egg=requirementslib
 six==1.10.0
 semver==2.7.8
 shutilwhich==1.1.0
