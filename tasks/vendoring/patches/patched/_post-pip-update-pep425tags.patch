@@ -7,9 +7,9 @@ index bea31585..4205f6e0 100644
  from collections import OrderedDict
  
 -try:
--    import pip._internal.utils.glibc
+-    import pipenv.patched.notpip._internal.utils.glibc
 -except ImportError:
--    import pip.utils.glibc
+-    import pipenv.patched.notpip.utils.glibc
 +import pipenv.patched.notpip._internal.utils.glibc
  
  logger = logging.getLogger(__name__)
