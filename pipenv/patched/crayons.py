@@ -67,15 +67,13 @@ class ColoredString(object):
 
     @property
     def color_str(self):
-        style = 'BRIGHT' if self.bold else 'NORMAL'
-        bg = getattr(colorama.Back, self.bgcolor) if self.bgcolor else None
+        style = getattr(colorama.Style, 'BRIGHT' if self.bold else 'NORMAL')
+        bg = getattr(colorama.Back, self.bgcolor, None)
         color = getattr(colorama.Fore, self.color)
-        style = getattr(colorama.Style, style)
-        normal = getattr(colorama.Style, 'NORMAL')
         if bg:
-            c = '%s%s%s%s%s' % (color, bg, style, self.s, colorama.Fore.RESET, normal)
+            c = '%s%s%s%s%s' % (color, bg, style, self.s, colorama.Style.RESET_ALL)
         else:
-            c = '%s%s%s%s' % (color, style, self.s, colorama.Fore.RESET, normal)
+            c = '%s%s%s%s' % (color, style, self.s, colorama.Style.RESET_ALL)
 
         if self.always_color:
             return c
@@ -150,7 +148,7 @@ def yellow(string, always=False, bold=False, on=None):
 
 def blue(string, always=False, bold=False, on=None):
     if os.name == 'nt':
-        return ColoredString('WHITE', string, always_color=always, bold=bold, bgcolor='BLUE')
+        return ColoredString('WHITE', string, always_color=always, bold=True, bgcolor='BLUE')
     return ColoredString('BLUE', string, always_color=always, bold=bold, bgcolor=on)
 
 
