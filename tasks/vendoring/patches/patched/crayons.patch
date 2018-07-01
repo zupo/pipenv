@@ -1,5 +1,5 @@
 diff --git a/pipenv/patched/crayons.py b/pipenv/patched/crayons.py
-index 455d3e9..82bed5c 100644
+index 455d3e9..c8f1db5 100644
 --- a/pipenv/patched/crayons.py
 +++ b/pipenv/patched/crayons.py
 @@ -12,14 +12,14 @@ import os
@@ -48,9 +48,9 @@ index 455d3e9..82bed5c 100644
 -        style = 'BRIGHT' if self.bold else 'NORMAL'
 -        c = '%s%s%s%s%s' % (getattr(colorama.Fore, self.color), getattr(colorama.Style, style), self.s, colorama.Fore.RESET, getattr(colorama.Style, 'NORMAL'))
 +        style = getattr(colorama.Style, 'BRIGHT' if self.bold else 'NORMAL')
-+        bg = getattr(colorama.Back, self.bgcolor, None)
 +        color = getattr(colorama.Fore, self.color)
-+        if bg:
++        if self.bgcolor:
++            bg = getattr(colorama.Back, self.bgcolor, None)
 +            c = '%s%s%s%s%s' % (color, bg, style, self.s, colorama.Style.RESET_ALL)
 +        else:
 +            c = '%s%s%s%s' % (color, style, self.s, colorama.Style.RESET_ALL)
