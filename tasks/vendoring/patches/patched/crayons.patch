@@ -1,5 +1,5 @@
 diff --git a/pipenv/patched/crayons.py b/pipenv/patched/crayons.py
-index 455d3e9..20b60fb 100644
+index 455d3e9..82bed5c 100644
 --- a/pipenv/patched/crayons.py
 +++ b/pipenv/patched/crayons.py
 @@ -12,14 +12,14 @@ import os
@@ -41,23 +41,23 @@ index 455d3e9..20b60fb 100644
              self.always_color = True
  
      def __getattr__(self, att):
-@@ -67,7 +68,14 @@ class ColoredString(object):
+@@ -66,8 +67,13 @@ class ColoredString(object):
+ 
      @property
      def color_str(self):
-         style = 'BRIGHT' if self.bold else 'NORMAL'
+-        style = 'BRIGHT' if self.bold else 'NORMAL'
 -        c = '%s%s%s%s%s' % (getattr(colorama.Fore, self.color), getattr(colorama.Style, style), self.s, colorama.Fore.RESET, getattr(colorama.Style, 'NORMAL'))
-+        bg = getattr(colorama.Back, self.bgcolor) if self.bgcolor else None
++        style = getattr(colorama.Style, 'BRIGHT' if self.bold else 'NORMAL')
++        bg = getattr(colorama.Back, self.bgcolor, None)
 +        color = getattr(colorama.Fore, self.color)
-+        style = getattr(colorama.Style, style)
-+        normal = getattr(colorama.Style, 'NORMAL')
 +        if bg:
-+            c = '%s%s%s%s%s' % (color, bg, style, self.s, colorama.Fore.RESET, normal)
++            c = '%s%s%s%s%s' % (color, bg, style, self.s, colorama.Style.RESET_ALL)
 +        else:
-+            c = '%s%s%s%s' % (color, style, self.s, colorama.Fore.RESET, normal)
++            c = '%s%s%s%s' % (color, style, self.s, colorama.Style.RESET_ALL)
  
          if self.always_color:
              return c
-@@ -76,7 +84,6 @@ class ColoredString(object):
+@@ -76,7 +82,6 @@ class ColoredString(object):
          else:
              return self.s
  
@@ -65,7 +65,7 @@ index 455d3e9..20b60fb 100644
      def __len__(self):
          return len(self.s)
  
-@@ -121,29 +128,44 @@ def clean(s):
+@@ -121,29 +126,44 @@ def clean(s):
      return txt
  
  
@@ -93,7 +93,7 @@ index 455d3e9..20b60fb 100644
 +
 +def blue(string, always=False, bold=False, on=None):
 +    if os.name == 'nt':
-+        return ColoredString('WHITE', string, always_color=always, bold=bold, bgcolor='BLUE')
++        return ColoredString('WHITE', string, always_color=always, bold=True, bgcolor='BLUE')
 +    return ColoredString('BLUE', string, always_color=always, bold=bold, bgcolor=on)
  
 -def red(string, always=False, bold=False):
