@@ -37,13 +37,14 @@ else:
 
 class ColoredString(object):
     """Enhanced string for __len__ operations on Colored output."""
-    def __init__(self, color, s, always_color=False, bold=False):
+    def __init__(self, color, s, always_color=False, bold=False, bgcolor=None):
         super(ColoredString, self).__init__()
         if not PY3 and isinstance(s, unicode):
             self.s = s.encode('utf-8')
         else:
             self.s = s
         self.color = color
+        self.bgcolor = bgcolor
         self.always_color = always_color
         self.bold = bold
         if os.environ.get('PIPENV_FORCE_COLOR'):
@@ -67,7 +68,10 @@ class ColoredString(object):
     @property
     def color_str(self):
         style = 'BRIGHT' if self.bold else 'NORMAL'
-        c = '%s%s%s%s%s' % (getattr(colorama.Fore, self.color), getattr(colorama.Style, style), self.s, colorama.Fore.RESET, getattr(colorama.Style, 'NORMAL'))
+        c = '%s%s' % (getattr(colorama.Fore, self.color), getattr(colorama.Style, style))
+        if self.bgcolor:
+            c = '%s%s' % (c, getattr(colorama.Fore, self.bgcolor))
+        c = '%s%s%s' % (c, colorama.Fore.RESET, getattr(colorama.Style, 'NORMAL'))
 
         if self.always_color:
             return c
@@ -120,41 +124,41 @@ def clean(s):
     return txt
 
 
-def normal(string, always=False, bold=False):
-    return ColoredString('RESET', string, always_color=always, bold=bold)
+def normal(string, always=False, bold=False, on=None):
+    return ColoredString('RESET', string, always_color=always, bold=bold, bgcolor=on)
 
 
-def black(string, always=False, bold=False):
-    return ColoredString('BLACK', string, always_color=always, bold=bold)
+def black(string, always=False, bold=False, on=None):
+    return ColoredString('BLACK', string, always_color=always, bold=bold, bgcolor=on)
 
 
-def red(string, always=False, bold=False):
-    return ColoredString('RED', string, always_color=always, bold=bold)
+def red(string, always=False, bold=False, on=None):
+    return ColoredString('RED', string, always_color=always, bold=bold, bgcolor=on)
 
 
-def green(string, always=False, bold=False):
-    return ColoredString('GREEN', string, always_color=always, bold=bold)
+def green(string, always=False, bold=False, on=None):
+    return ColoredString('GREEN', string, always_color=always, bold=bold, bgcolor=on)
 
 
-def yellow(string, always=False, bold=False):
-    return ColoredString('YELLOW', string, always_color=always, bold=bold)
+def yellow(string, always=False, bold=False, on=None):
+    return ColoredString('YELLOW', string, always_color=always, bold=bold, bgcolor=on)
 
 
-def blue(string, always=False, bold=False):
-    return ColoredString('BLUE', string, always_color=always, bold=bold)
+def blue(string, always=False, bold=False, on=None):
+    return ColoredString('BLUE', string, always_color=always, bold=bold, bgcolor=on)
 
 
-def magenta(string, always=False, bold=False):
-    return ColoredString('MAGENTA', string, always_color=always, bold=bold)
+def magenta(string, always=False, bold=False, on=None):
+    return ColoredString('MAGENTA', string, always_color=always, bold=bold, bgcolor=on)
 
 
-def cyan(string, always=False, bold=False):
-    return ColoredString('CYAN', string, always_color=always, bold=bold)
+def cyan(string, always=False, bold=False, on=None):
+    return ColoredString('CYAN', string, always_color=always, bold=bold, bgcolor=on)
 
 
-def white(string, always=False, bold=False):
+def white(string, always=False, bold=False, on=None):
     # This upsets people...
-    return ColoredString('WHITE', string, always_color=always, bold=bold)
+    return ColoredString('WHITE', string, always_color=always, bold=bold, bgcolor=on)
 
 
 def disable():
