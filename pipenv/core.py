@@ -980,7 +980,6 @@ def get_downloads_info(names_map, section):
 
 
 def do_lock(
-    verbose=False,
     system=False,
     clear=False,
     pre=False,
@@ -1056,7 +1055,7 @@ def do_lock(
         results = venv_resolve_deps(
             deps,
             which=which,
-            verbose=verbose,
+            verbose=(environments.PIPENV_VERBOSITY > 0),
             project=project,
             clear=clear,
             pre=pre,
@@ -1077,7 +1076,7 @@ def do_lock(
             project,
             pip_freeze,
             which=which,
-            verbose=verbose,
+            verbose=(environments.PIPENV_VERBOSITY > 0),
             clear=clear,
             pre=pre,
             allow_global=system,
@@ -1087,7 +1086,7 @@ def do_lock(
         vcs_results = venv_resolve_deps(
             vcs_lines,
             which=which,
-            verbose=verbose,
+            verbose=(environments.PIPENV_VERBOSITY > 0),
             project=project,
             clear=clear,
             pre=pre,
@@ -1297,7 +1296,6 @@ def do_init(
                 system=system,
                 pre=pre,
                 keep_outdated=keep_outdated,
-                verbose=verbose,
                 write=True,
                 pypi_mirror=pypi_mirror,
             )
