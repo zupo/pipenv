@@ -1197,7 +1197,6 @@ def do_init(
     allow_global=False,
     ignore_pipfile=False,
     skip_lock=False,
-    verbose=False,
     system=False,
     concurrent=True,
     deploy=False,
@@ -1301,7 +1300,7 @@ def do_init(
         requirements=requirements,
         allow_global=allow_global,
         skip_lock=skip_lock,
-        verbose=verbose,
+        verbose=environments.PIPENV_VERBOSITY > 0,
         concurrent=concurrent,
         requirements_dir=requirements_dir.name,
         pypi_mirror=pypi_mirror,
@@ -1901,7 +1900,6 @@ def do_install(
             ignore_pipfile=ignore_pipfile,
             system=system,
             skip_lock=skip_lock,
-            verbose=(environments.PIPENV_VERBOSITY > 0),
             concurrent=concurrent,
             deploy=deploy,
             pre=pre,
@@ -1998,7 +1996,6 @@ def do_install(
             system=system,
             allow_global=system,
             concurrent=concurrent,
-            verbose=(environments.PIPENV_VERBOSITY > 0),
             keep_outdated=keep_outdated,
             requirements_dir=requirements_directory,
             deploy=deploy,
@@ -2513,7 +2510,6 @@ def do_sync(
     requirements_dir = TemporaryDirectory(suffix="-requirements", prefix="pipenv-")
     do_init(
         dev=dev,
-        verbose=(environments.PIPENV_VERBOSITY > 0),
         concurrent=(not sequential),
         requirements_dir=requirements_dir,
         ignore_pipfile=True,  # Don't check if Pipfile and lock match.
