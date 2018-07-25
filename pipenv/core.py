@@ -2534,7 +2534,6 @@ def do_clean(
     python=None,
     dry_run=False,
     bare=False,
-    verbose=False,
     pypi_mirror=None,
 ):
     # Ensure that virtualenv is available.
@@ -2545,7 +2544,7 @@ def do_clean(
     # Remove known "bad packages" from the list.
     for bad_package in BAD_PACKAGES:
         if bad_package in installed_package_names:
-            if verbose:
+            if environments.PIPENV_VERBOSITY > 0:
                 click.echo("Ignoring {0}.".format(repr(bad_package)), err=True)
             del installed_package_names[installed_package_names.index(bad_package)]
     # Intelligently detect if --dev should be used or not.
